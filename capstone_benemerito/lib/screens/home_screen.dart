@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:capstone_benemerito/data/schedule_repository.dart';
+import 'package:capstone_benemerito/screens/class_form_screen.dart';
 import 'package:capstone_benemerito/models/schedule_item.dart';
 import 'package:capstone_benemerito/services/notification_service.dart';
 import 'package:capstone_benemerito/screens/timetable_screen.dart';
@@ -149,12 +150,58 @@ class _HomeScreenState extends State<HomeScreen> {
     return '';
   }
 
+  void _snack(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Opens the add / edit form. The form pops with a status message.
+  Future<void> _openForm({ScheduleItem? item}) async {
+    final day = _pickedDay ?? DateTime.now().weekday;
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => ClassFormScreen(item: item, initialDay: day),
+      ),
+    );
+    if (!mounted || result == null) return;
+    _snack(result);
+  }
+
+  Future<void> _confirmDelete(ScheduleItem item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete class?'),
+        content: Text(
+          '"${item.subject}" on ${_dayNames[item.dayOfWeek]} will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ScheduleRepository.instance.delete(item.id);
+      if (mounted) _snack('Class deleted');
+    } catch (e) {
+      if (mounted) _snack("Couldn't delete the class: $e");
+    }
+  }
+
   void _showDetails(ScheduleItem item) {
     final textTheme = Theme.of(context).textTheme;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(_s3, 0, _s3, _s3),
           child: Column(
@@ -190,6 +237,32 @@ class _HomeScreenState extends State<HomeScreen> {
               _InfoRow(
                 icon: Icons.notifications_none,
                 text: 'Reminder ${item.reminderMinutesBefore} min before class',
+              ),
+              const SizedBox(height: _s2),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _confirmDelete(item);
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Delete'),
+                    ),
+                  ),
+                  const SizedBox(width: _s1),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _openForm(item: item);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -308,6 +381,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 text: isToday
                     ? 'No classes today'
                     : 'No classes on ${_dayNames[shown]}',
+                onAdd: () => _openForm(),
               )
             else
               for (final item in dayItems)
@@ -343,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         flex: 6,
                         child: ListView(
-                          padding: const EdgeInsets.only(top: _s1),
+                          padding: const EdgeInsets.only(top: _s1, bottom: 88),
                           children: scheduleWidgets,
                         ),
                       ),
@@ -352,7 +426,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               // Single column for phones / narrow windows.
               : ListView(
-                  padding: const EdgeInsets.all(_s2),
+                  padding: const EdgeInsets.fromLTRB(_s2, _s2, _s2, 88),
                   children: [
                     header,
                     const SizedBox(height: _s1),
@@ -373,6 +447,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: content,
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openForm(),
+        icon: const Icon(Icons.add),
+        label: const Text('Add class'),
       ),
       bottomNavigationBar: SafeArea(
         child: SwitchListTile(
@@ -574,9 +653,10 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _EmptyDay extends StatelessWidget {
-  const _EmptyDay({required this.text});
+  const _EmptyDay({required this.text, required this.onAdd});
 
   final String text;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -593,6 +673,12 @@ class _EmptyDay extends StatelessWidget {
             'Enjoy the free time, or open the weekly view to plan ahead.',
             textAlign: TextAlign.center,
             style: TextStyle(color: muted),
+          ),
+          const SizedBox(height: _s2),
+          FilledButton.tonalIcon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Add a class'),
           ),
         ],
       ),

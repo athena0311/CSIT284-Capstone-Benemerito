@@ -17,6 +17,10 @@ class ScheduleRepository {
         snap.docs.map((d) => ScheduleItem.fromMap(d.id, d.data())).toList(),
   );
 
+  /// A fresh unique document id for a new class.
+  String newId() => _col.doc().id;
+
+  /// Create or update (same call: the document id decides which).
   Future<void> save(ScheduleItem item) => _col.doc(item.id).set(item.toMap());
 
   Future<void> delete(String id) => _col.doc(id).delete();
