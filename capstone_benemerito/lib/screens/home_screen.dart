@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../data/dummy_items.dart';
-import '../models/schedule_item.dart';
-import '../services/notification_service.dart';
-import 'timetable_screen.dart';
+import 'package:capstone_benemerito/data/dummy_items.dart';
+import 'package:capstone_benemerito/models/schedule_item.dart';
+import 'package:capstone_benemerito/services/notification_service.dart';
+import 'package:capstone_benemerito/screens/timetable_screen.dart';
 
 const _dayNames = [
   '',
@@ -38,8 +38,9 @@ const double _s1 = 8;
 const double _s2 = 16;
 const double _s3 = 24;
 
-/// Keeps content readable on wide screens (web / tablet). Phones are unaffected.
-const double _maxContentWidth = 600;
+/// Screens at least this wide (maximized browser, tablet landscape) switch to
+/// a two-column layout: status card on the left, schedule list on the right.
+const double _wideBreakpoint = 900;
 
 /// 158 -> "2 h 38 min", 45 -> "45 min", 120 -> "2 h".
 String _formatDuration(int minutes) {
@@ -193,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BSIT - 3'),
+        title: const Text('BSCS 2-A'),
         actions: [
           IconButton(
             tooltip: 'Weekly timetable',
@@ -204,107 +205,135 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= _wideBreakpoint;
+
+          final header = Row(
+            children: [
+              Expanded(
+                child: Text(
+                  isToday
+                      ? '${_dayNames[now.weekday]}, ${_monthNames[now.month]} ${now.day}'
+                      : _dayNames[shown],
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (!isToday)
+                TextButton(
+                  onPressed: () => setState(() => _pickedDay = null),
+                  child: const Text('Today'),
+                ),
+              IconButton(
+                tooltip: 'Previous day',
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => _goToDay(-1, shown, now.weekday),
+              ),
+              IconButton(
+                tooltip: 'Next day',
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => _goToDay(1, shown, now.weekday),
+              ),
+            ],
+          );
+
+          final hero = isToday
+              ? _todayHero(
+                  current: current,
+                  next: next,
+                  minutes: minutes,
+                  todayCount: dayItems.length,
+                  weekday: now.weekday,
+                )
+              : _otherDayHero(shown, dayItems);
+
+          final scheduleWidgets = <Widget>[
+            Text(
+              isToday ? "Today's schedule" : "${_dayNames[shown]}'s schedule",
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: _s1),
+            if (dayItems.isEmpty)
+              _EmptyDay(
+                text: isToday
+                    ? 'No classes today'
+                    : 'No classes on ${_dayNames[shown]}',
+              )
+            else
+              for (final item in dayItems)
+                _ClassTile(
+                  item: item,
+                  isPast: isToday && minutes >= item.endMinutes,
+                  isNow: item == current,
+                  onTap: () => _showDetails(item),
+                ),
+          ];
+
+          final Widget content = wide
+              // Two columns that stretch with the window.
+              ? Padding(
+                  padding: const EdgeInsets.all(_s3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              header,
+                              const SizedBox(height: _s1),
+                              hero,
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: _s3),
+                      Expanded(
+                        flex: 6,
+                        child: ListView(
+                          padding: const EdgeInsets.only(top: _s1),
+                          children: scheduleWidgets,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              // Single column for phones / narrow windows.
+              : ListView(
+                  padding: const EdgeInsets.all(_s2),
+                  children: [
+                    header,
+                    const SizedBox(height: _s1),
+                    hero,
+                    const SizedBox(height: _s3),
+                    ...scheduleWidgets,
+                  ],
+                );
+
           // Swipe left / right to change day.
-          child: GestureDetector(
+          return GestureDetector(
             behavior: HitTestBehavior.translucent,
             onHorizontalDragEnd: (d) {
               final v = d.primaryVelocity ?? 0;
               if (v < -300) _goToDay(1, shown, now.weekday);
               if (v > 300) _goToDay(-1, shown, now.weekday);
             },
-            child: ListView(
-              padding: const EdgeInsets.all(_s2),
-              children: [
-                // Day header + switcher
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        isToday
-                            ? '${_dayNames[now.weekday]}, ${_monthNames[now.month]} ${now.day}'
-                            : _dayNames[shown],
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    if (!isToday)
-                      TextButton(
-                        onPressed: () => setState(() => _pickedDay = null),
-                        child: const Text('Today'),
-                      ),
-                    IconButton(
-                      tooltip: 'Previous day',
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: () => _goToDay(-1, shown, now.weekday),
-                    ),
-                    IconButton(
-                      tooltip: 'Next day',
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: () => _goToDay(1, shown, now.weekday),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: _s1),
-
-                // Hero card
-                if (isToday)
-                  _todayHero(
-                    current: current,
-                    next: next,
-                    minutes: minutes,
-                    todayCount: dayItems.length,
-                    weekday: now.weekday,
-                  )
-                else
-                  _otherDayHero(shown, dayItems),
-                const SizedBox(height: _s3),
-
-                // List
-                Text(
-                  isToday
-                      ? "Today's schedule"
-                      : "${_dayNames[shown]}'s schedule",
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: _s1),
-                if (dayItems.isEmpty)
-                  _EmptyDay(
-                    text: isToday
-                        ? 'No classes today'
-                        : 'No classes on ${_dayNames[shown]}',
-                  )
-                else
-                  for (final item in dayItems)
-                    _ClassTile(
-                      item: item,
-                      isPast: isToday && minutes >= item.endMinutes,
-                      isNow: item == current,
-                      onTap: () => _showDetails(item),
-                    ),
-              ],
-            ),
-          ),
-        ),
+            child: content,
+          );
+        },
       ),
       bottomNavigationBar: SafeArea(
-        child: Center(
-          heightFactor: 1,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _maxContentWidth),
-            child: SwitchListTile(
-              title: const Text('Class reminders'),
-              subtitle: const Text('Notify me 10 minutes before each class'),
-              value: _remind,
-              onChanged: _toggleReminders,
-            ),
-          ),
+        child: SwitchListTile(
+          title: const Text('Class reminders'),
+          subtitle: const Text('Notify me 10 minutes before each class'),
+          value: _remind,
+          onChanged: _toggleReminders,
         ),
       ),
     );

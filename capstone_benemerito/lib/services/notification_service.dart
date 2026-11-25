@@ -3,7 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../models/schedule_item.dart';
+import 'package:capstone_benemerito/models/schedule_item.dart';
 
 /// Schedules a weekly repeating notification before each class (default 10 min).
 ///
