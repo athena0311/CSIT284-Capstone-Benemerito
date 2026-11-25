@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
-import 'package:capstone_benemerito/data/dummy_items.dart';
 import 'package:capstone_benemerito/models/schedule_item.dart';
 
 /// Weekly Monday–Saturday grid, 7 AM to 6 PM.
 class TimetableScreen extends StatelessWidget {
-  const TimetableScreen({super.key});
+  const TimetableScreen({super.key, required this.items});
+
+  /// Classes to draw (loaded from Firestore by the home screen).
+  final List<ScheduleItem> items;
 
   static const int startHour = 7;
   static const int endHour = 18;
@@ -79,6 +81,7 @@ class TimetableScreen extends StatelessWidget {
                       weekday: d,
                       isToday: d == todayWeekday,
                       height: totalHeight,
+                      items: items,
                     ),
                   ),
               ],
@@ -95,16 +98,18 @@ class _DayColumn extends StatelessWidget {
     required this.weekday,
     required this.isToday,
     required this.height,
+    required this.items,
   });
 
   final int weekday;
   final bool isToday;
   final double height;
+  final List<ScheduleItem> items;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final items = dummySchedules.where((x) => x.dayOfWeek == weekday);
+    final dayItems = items.where((x) => x.dayOfWeek == weekday);
     const hh = TimetableScreen.hourHeight;
     const sh = TimetableScreen.startHour;
     const pad = TimetableScreen.vPad;
@@ -125,7 +130,7 @@ class _DayColumn extends StatelessWidget {
               right: 0,
               child: Divider(height: 1, color: Theme.of(context).dividerColor),
             ),
-          for (final i in items)
+          for (final i in dayItems)
             Positioned(
               top: pad + (i.startMinutes - sh * 60) / 60 * hh,
               left: 2,

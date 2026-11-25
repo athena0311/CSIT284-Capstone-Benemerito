@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:capstone_benemerito/data/dummy_items.dart';
+import 'package:capstone_benemerito/data/schedule_repository.dart';
 import 'package:capstone_benemerito/models/schedule_item.dart';
 import 'package:capstone_benemerito/services/notification_service.dart';
 import 'package:capstone_benemerito/screens/timetable_screen.dart';
@@ -63,7 +63,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
+  StreamSubscription<List<ScheduleItem>>? _sub;
   bool _remind = false;
+
+  /// Classes loaded live from Firestore.
+  List<ScheduleItem> _items = [];
+  bool _loading = true;
+  Object? _error;
 
   /// Weekday the user navigated to (1 = Mon … 7 = Sun). Null = follow today.
   int? _pickedDay;
@@ -75,11 +81,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+
+    // Listen to Firestore: emits again whenever the data changes.
+    _sub = ScheduleRepository.instance.watchAll().listen(
+      (items) {
+        if (!mounted) return;
+        setState(() {
+          _items = items;
+          _loading = false;
+          _error = null;
+        });
+        // Keep reminders in sync with the latest data.
+        if (_remind) NotificationService.instance.scheduleWeekly(items);
+      },
+      onError: (Object e) {
+        if (!mounted) return;
+        setState(() {
+          _error = e;
+          _loading = false;
+        });
+      },
+    );
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -100,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-    await svc.scheduleWeekly(dummySchedules);
+    await svc.scheduleWeekly(_items);
     if (mounted) setState(() => _remind = true);
   }
 
@@ -112,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _nextClassText(int weekday) {
     for (var i = 1; i <= 7; i++) {
       final d = (weekday - 1 + i) % 7 + 1;
-      final list = getSchedulesForDay(d);
+      final list = schedulesForDay(_items, d);
       if (list.isNotEmpty) {
         final when = i == 1 ? 'tomorrow' : _dayNames[d];
         return 'Next class: $when at ${ScheduleItem.format(list.first.startMinutes)} (${list.first.subjectCode})';
@@ -172,11 +200,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('BSIT - 3')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(_s3),
+            child: Text(
+              "Couldn't load the schedule.\n$_error",
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     final now = DateTime.now();
     final minutes = now.hour * 60 + now.minute;
     final shown = _pickedDay ?? now.weekday;
     final isToday = shown == now.weekday;
-    final dayItems = getSchedulesForDay(shown);
+    final dayItems = schedulesForDay(_items, shown);
 
     ScheduleItem? current;
     ScheduleItem? next;
@@ -194,14 +240,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BSCS 2-A'),
+        title: const Text('BSIT - 3'),
         actions: [
           IconButton(
             tooltip: 'Weekly timetable',
             icon: const Icon(Icons.calendar_view_week),
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const TimetableScreen())),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => TimetableScreen(items: _items)),
+            ),
           ),
         ],
       ),

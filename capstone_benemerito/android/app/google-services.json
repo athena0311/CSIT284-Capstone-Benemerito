@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "291767270107",
+    "project_id": "capstone-benemerito",
+    "storage_bucket": "capstone-benemerito.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:291767270107:android:35e8ea3dcc0fb231b76afe",
+        "android_client_info": {
+          "package_name": "com.example.capstone_benemerito"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwP--vZ4jTLgSpqxkeQaLavoI5zkkVxCo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

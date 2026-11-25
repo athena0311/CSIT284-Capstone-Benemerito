@@ -32,8 +32,35 @@ class ScheduleItem {
   int get startMinutes => _parse(startTime);
   int get endMinutes => _parse(endTime);
 
-  /// Notification ids must be ints; ids in the seed data are numeric strings.
-  int get notificationId => int.parse(id);
+  /// Notification ids must be ints. Numeric ids are used as-is;
+  /// anything else (like Firestore auto-ids) is hashed.
+  int get notificationId => int.tryParse(id) ?? (id.hashCode & 0x7fffffff);
+
+  factory ScheduleItem.fromMap(String id, Map<String, dynamic> m) {
+    return ScheduleItem(
+      id: id,
+      subject: m['subject'] as String,
+      subjectCode: m['subjectCode'] as String,
+      instructor: m['instructor'] as String,
+      room: m['room'] as String,
+      dayOfWeek: (m['dayOfWeek'] as num).toInt(),
+      startTime: m['startTime'] as String,
+      endTime: m['endTime'] as String,
+      reminderMinutesBefore:
+          (m['reminderMinutesBefore'] as num?)?.toInt() ?? 10,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'subject': subject,
+    'subjectCode': subjectCode,
+    'instructor': instructor,
+    'room': room,
+    'dayOfWeek': dayOfWeek,
+    'startTime': startTime,
+    'endTime': endTime,
+    'reminderMinutesBefore': reminderMinutesBefore,
+  };
 
   static String format(int minutes) {
     var h = minutes ~/ 60;
@@ -57,5 +84,11 @@ class ScheduleItem {
 
   /// Same subject code always gets the same color.
   Color get color =>
-      palette[subjectCode.codeUnits.fold<int>(0, (a, b) => a + b) % palette.length];
+      palette[subjectCode.codeUnits.fold<int>(0, (a, b) => a + b) %
+          palette.length];
 }
+
+/// Classes on [day] (1 = Monday … 7 = Sunday), sorted by start time.
+List<ScheduleItem> schedulesForDay(List<ScheduleItem> all, int day) =>
+    all.where((i) => i.dayOfWeek == day).toList()
+      ..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
