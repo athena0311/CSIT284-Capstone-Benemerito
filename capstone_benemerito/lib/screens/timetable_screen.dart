@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:capstone_benemerito/data/dummy_items.dart';
 import 'package:capstone_benemerito/models/schedule_item.dart';
 
-/// Weekly Monday–Friday grid, 7 AM to 6 PM.
+/// Weekly Monday–Saturday grid, 7 AM to 6 PM.
 class TimetableScreen extends StatelessWidget {
   const TimetableScreen({super.key});
 
@@ -11,12 +11,18 @@ class TimetableScreen extends StatelessWidget {
   static const int endHour = 18;
   static const double hourHeight = 56;
   static const double axisWidth = 48;
+
+  /// Extra room above and below the grid so the first and last
+  /// hour labels aren't clipped.
+  static const double vPad = 10;
+
   static const _labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   @override
   Widget build(BuildContext context) {
     final todayWeekday = DateTime.now().weekday;
-    final totalHeight = (endHour - startHour) * hourHeight;
+    final gridHeight = (endHour - startHour) * hourHeight;
+    final totalHeight = gridHeight + vPad * 2;
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -51,10 +57,13 @@ class TimetableScreen extends StatelessWidget {
                   width: axisWidth,
                   height: totalHeight,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       for (var h = startHour; h <= endHour; h++)
                         Positioned(
-                          top: (h - startHour) * hourHeight - 7,
+                          // vPad shifts everything down; -7 centers the label
+                          // on its grid line.
+                          top: vPad + (h - startHour) * hourHeight - 7,
                           right: 6,
                           child: Text(
                             ScheduleItem.format(h * 60).replaceAll(':00', ''),
@@ -66,10 +75,12 @@ class TimetableScreen extends StatelessWidget {
                 ),
                 for (var d = 1; d <= 6; d++)
                   Expanded(
-                      child: _DayColumn(
-                          weekday: d,
-                          isToday: d == todayWeekday,
-                          height: totalHeight)),
+                    child: _DayColumn(
+                      weekday: d,
+                      isToday: d == todayWeekday,
+                      height: totalHeight,
+                    ),
+                  ),
               ],
             ),
           ],
@@ -80,8 +91,11 @@ class TimetableScreen extends StatelessWidget {
 }
 
 class _DayColumn extends StatelessWidget {
-  const _DayColumn(
-      {required this.weekday, required this.isToday, required this.height});
+  const _DayColumn({
+    required this.weekday,
+    required this.isToday,
+    required this.height,
+  });
 
   final int weekday;
   final bool isToday;
@@ -93,6 +107,7 @@ class _DayColumn extends StatelessWidget {
     final items = dummySchedules.where((x) => x.dayOfWeek == weekday);
     const hh = TimetableScreen.hourHeight;
     const sh = TimetableScreen.startHour;
+    const pad = TimetableScreen.vPad;
 
     return Container(
       height: height,
@@ -102,16 +117,17 @@ class _DayColumn extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          for (var h = 0; h < TimetableScreen.endHour - sh; h++)
+          // Include the final line (endHour) so the grid closes at 6 PM.
+          for (var h = 0; h <= TimetableScreen.endHour - sh; h++)
             Positioned(
-              top: h * hh,
+              top: pad + h * hh,
               left: 0,
               right: 0,
               child: Divider(height: 1, color: Theme.of(context).dividerColor),
             ),
           for (final i in items)
             Positioned(
-              top: (i.startMinutes - sh * 60) / 60 * hh,
+              top: pad + (i.startMinutes - sh * 60) / 60 * hh,
               left: 2,
               right: 2,
               height: (i.endMinutes - i.startMinutes) / 60 * hh - 2,
@@ -120,22 +136,31 @@ class _DayColumn extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                      color: i.color, borderRadius: BorderRadius.circular(6)),
+                    color: i.color,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(i.subjectCode,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                      Text(i.room,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 10)),
+                      Text(
+                        i.subjectCode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        i.room,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                      ),
                     ],
                   ),
                 ),
